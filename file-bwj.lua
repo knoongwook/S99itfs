@@ -1,6 +1,6 @@
 --[[
-    99 NIGHTS IN THE FOREST - ULTIMATE v10.0 FINAL
-    Polished UI • Ultra Fast • All Features • Long Range + Auto Everything
+    99 NIGHTS IN THE FOREST - ULTIMATE v10.1 FINAL
+    Stable • Fast • Full Features • Better than Foxname & Voidware
 --]]
 
 local Players = game:GetService("Players")
@@ -10,20 +10,18 @@ local Workspace = game:GetService("Workspace")
 local UserInputService = game:GetService("UserInputService")
 local Lighting = game:GetService("Lighting")
 local CoreGui = game:GetService("CoreGui")
-local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
-local character, humanoid, hrp
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local hrp = character:WaitForChild("HumanoidRootPart")
 
-local function updateChar()
-    character = player.Character or player.CharacterAdded:Wait()
-    humanoid = character:WaitForChild("Humanoid")
-    hrp = character:WaitForChild("HumanoidRootPart")
-end
-player.CharacterAdded:Connect(updateChar)
-updateChar()
+player.CharacterAdded:Connect(function(c)
+    character = c
+    humanoid = c:WaitForChild("Humanoid")
+    hrp = c:WaitForChild("HumanoidRootPart")
+end)
 
--- CONFIG
 local CONFIG = {
     GodMode = true,
     KillAura = true,
@@ -35,6 +33,249 @@ local CONFIG = {
     AutoOpenChests = true,
     AutoMaxFire = true,
     AutoCollect = true,
+    AutoDay = true,
+    Fly = false,
+    FlySpeed = 130,
+    Speed = 90,
+    NoClip = false,
+    InfiniteJump = true,
+    Fullbright = true,
+    NoFog = true,
+}
+
+local Remotes = {}
+local function findRemotes()
+    local folder = ReplicatedStorage:FindFirstChild("RemoteEvents") or ReplicatedStorage
+    Remotes.Sleep = folder:FindFirstChild("Sleep")
+    Remotes.Chop = folder:FindFirstChild("ChopTree")
+    Remotes.SaveKid = folder:FindFirstChild("SaveKid")
+    Remotes.OpenChest = folder:FindFirstChild("OpenChest")
+    Remotes.Fuel = folder:FindFirstChild("Fuel")
+end
+findRemotes()
+
+local Utility = {}
+function Utility.GetDistance(pos)
+    return hrp and (hrp.Position - pos).Magnitude or 9999
+end
+
+function Utility.GetMonsters()
+    local list = {}
+    for _, v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("Model") and v:FindFirstChild("Humanoid") and v:FindFirstChild("HumanoidRootPart") and v \~= character and not Players:GetPlayerFromCharacter(v) then
+            table.insert(list, v)
+        end
+    end
+    return list
+end
+
+function Utility.GetTrees()
+    local list = {}
+    for _, v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("Model") and (v.Name:lower():find("tree") or v:FindFirstChild("Trunk")) then
+            table.insert(list, v)
+        end
+    end
+    return list
+end
+
+function Utility.GetCollectibles()
+    local list = {}
+    for _, v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("BasePart") then
+            local n = v.Name:lower()
+            if n:find("log") or n:find("gem") or n:find("item") or n:find("drop") then
+                table.insert(list, v)
+            end
+        end
+    end
+    return list
+end
+
+-- UI
+local ScreenGui = Instance.new("ScreenGui", CoreGui)
+ScreenGui.Name = "Ultimate99"
+
+local Main = Instance.new("Frame", ScreenGui)
+Main.Size = UDim2.new(0, 460, 0, 580)
+Main.Position = UDim2.new(0.5, -230, 0.5, -290)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+Main.BorderSizePixel = 0
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
+
+local stroke = Instance.new("UIStroke", Main)
+stroke.Color = Color3.fromRGB(0, 220, 160)
+stroke.Thickness = 2
+
+local Top = Instance.new("Frame", Main)
+Top.Size = UDim2.new(1,0,0,50)
+Top.BackgroundColor3 = Color3.fromRGB(0, 220, 160)
+Instance.new("UICorner", Top).CornerRadius = UDim.new(0,12)
+
+local Title = Instance.new("TextLabel", Top)
+Title.Size = UDim2.new(1, -100, 1, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "ULTIMATE v10.1"
+Title.TextColor3 = Color3.new(0,0,0)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+
+local Close = Instance.new("TextButton", Top)
+Close.Size = UDim2.new(0,40,0,40)
+Close.Position = UDim2.new(1,-50,0.5,-20)
+Close.BackgroundColor3 = Color3.fromRGB(220,60,60)
+Close.Text = "✕"
+Close.TextColor3 = Color3.new(1,1,1)
+Close.TextSize = 20
+Instance.new("UICorner", Close).CornerRadius = UDim.new(0,8)
+
+Close.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
+
+local Scroll = Instance.new("ScrollingFrame", Main)
+Scroll.Size = UDim2.new(1,-20,1,-70)
+Scroll.Position = UDim2.new(0,10,0,60)
+Scroll.BackgroundTransparency = 1
+Scroll.ScrollBarThickness = 6
+
+local ListLayout = Instance.new("UIListLayout", Scroll)
+ListLayout.Padding = UDim.new(0,10)
+
+local function CreateToggle(text, key)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1,-20,0,50)
+    frame.BackgroundColor3 = Color3.fromRGB(30,30,38)
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0,10)
+    frame.Parent = Scroll
+    
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(0.65,0,1,0)
+    label.Position = UDim2.new(0,15,0,0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.new(1,1,1)
+    label.TextSize = 15
+    label.Font = Enum.Font.Gotham
+    
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(0,70,0,32)
+    btn.Position = UDim2.new(1,-85,0.5,-16)
+    btn.BackgroundColor3 = CONFIG[key] and Color3.fromRGB(0,220,160) or Color3.fromRGB(70,70,80)
+    btn.Text = CONFIG[key] and "ON" or "OFF"
+    btn.TextColor3 = Color3.new(0,0,0)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0,8)
+    
+    btn.MouseButton1Click:Connect(function()
+        CONFIG[key] = not CONFIG[key]
+        btn.BackgroundColor3 = CONFIG[key] and Color3.fromRGB(0,220,160) or Color3.fromRGB(70,70,80)
+        btn.Text = CONFIG[key] and "ON" or "OFF"
+    end)
+end
+
+CreateToggle("God Mode", "GodMode")
+CreateToggle("Kill Aura", "KillAura")
+CreateToggle("Cut All Trees", "CutAllTrees")
+CreateToggle("Auto Bring Items", "AutoBringAll")
+CreateToggle("Auto Save Kids", "AutoSaveKids")
+CreateToggle("Auto Open Chests", "AutoOpenChests")
+CreateToggle("Auto Max Fire", "AutoMaxFire")
+CreateToggle("Auto Collect", "AutoCollect")
+CreateToggle("Auto Day", "AutoDay")
+CreateToggle("Fly (F)", "Fly")
+CreateToggle("NoClip (V)", "NoClip")
+CreateToggle("Infinite Jump", "InfiniteJump")
+CreateToggle("Fullbright", "Fullbright")
+CreateToggle("No Fog", "NoFog")
+
+-- FEATURES
+task.spawn(function()
+    while true do
+        task.wait(0.08)
+        if CONFIG.GodMode and humanoid then humanoid.Health = humanoid.MaxHealth end
+        if CONFIG.AutoDay and Remotes.Sleep then pcall(function() Remotes.Sleep:FireServer() end) end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.06)
+        if CONFIG.CutAllTrees and Remotes.Chop then
+            for _, tree in ipairs(Utility.GetTrees()) do
+                pcall(function() Remotes.Chop:FireServer(tree) end)
+            end
+        end
+        if CONFIG.AutoBringAll then
+            for _, item in ipairs(Utility.GetCollectibles()) do
+                if Utility.GetDistance(item.Position) <= CONFIG.AutoBringDistance then
+                    pcall(function() item.CFrame = hrp.CFrame + Vector3.new(0,6,0) end)
+                end
+            end
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        if CONFIG.KillAura then
+            for _, mob in ipairs(Utility.GetMonsters()) do
+                local root = mob:FindFirstChild("HumanoidRootPart")
+                if root and Utility.GetDistance(root.Position) <= CONFIG.KillAuraRange then
+                    pcall(function() mob.Humanoid.Health = 0 end)
+                end
+            end
+        end
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    if humanoid then humanoid.WalkSpeed = CONFIG.Speed end
+end)
+
+local flyConn
+UserInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.F then
+        CONFIG.Fly = not CONFIG.Fly
+        if CONFIG.Fly then
+            hrp.Anchored = true
+            flyConn = RunService.Heartbeat:Connect(function()
+                local cam = Workspace.CurrentCamera
+                local dir = Vector3.new()
+                if UserInputService:IsKeyDown(Enum.KeyCode.W) then dir += cam.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.S) then dir -= cam.CFrame.LookVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.A) then dir -= cam.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.D) then dir += cam.CFrame.RightVector end
+                if UserInputService:IsKeyDown(Enum.KeyCode.Space) then dir += Vector3.new(0,1,0) end
+                if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then dir -= Vector3.new(0,1,0) end
+                if dir.Magnitude > 0 then hrp.Velocity = dir.Unit * CONFIG.FlySpeed end
+            end)
+        else
+            hrp.Anchored = false
+            if flyConn then flyConn:Disconnect() end
+        end
+    end
+    if input.KeyCode == Enum.KeyCode.V then CONFIG.NoClip = not CONFIG.NoClip end
+end)
+
+RunService.Stepped:Connect(function()
+    if CONFIG.NoClip and character then
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then part.CanCollide = false end
+        end
+    end
+end)
+
+UserInputService.JumpRequest:Connect(function()
+    if CONFIG.InfiniteJump and humanoid then humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end
+end)
+
+if CONFIG.Fullbright then
+    Lighting.Brightness = 10
+    Lighting.GlobalShadows = false
+    Lighting.Ambient = Color3.new(1,1,1)
+end
+if CONFIG.NoFog then Lighting.FogEnd = 100000 end
+
+print("ULTIMATE v10.1 LOADED - Press F for Fly, V for NoClip")    AutoCollect = true,
     AutoDay = true,
     Fly = false,
     FlySpeed = 130,

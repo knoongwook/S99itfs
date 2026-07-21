@@ -1,6 +1,6 @@
--- 99 NIGHTS IN THE FOREST - ULTIMATE (Refactor v1.1)
+-- 99 NIGHTS IN THE FOREST - ULTIMATE (Refactor v1.2)
 -- Improvements: safer checks, throttled remotes, caching, better loops, UI fallback
--- UI: added floating toggle button and more controls (toggles & sliders)
+-- UI mobile fixes: floating TextButton (touch-friendly) + ScrollingFrame for content
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -81,52 +81,58 @@ Utility._cacheTTL = 0.5 -- seconds
 
 function Utility.Notify(title, text, duration)
     duration = duration or 3
-    local notifyGui = Instance.new("ScreenGui")
-    notifyGui.Name = "Notification"
-    notifyGui.Parent = PlayerGui
+    local ok, notifyGui = pcall(function()
+        local g = Instance.new("ScreenGui")
+        g.Name = "Notification"
+        g.Parent = PlayerGui
 
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 320, 0, 70)
-    frame.Position = UDim2.new(1, -340, 1, -90)
-    frame.BackgroundColor3 = Color3.fromRGB(30,30,35)
-    frame.BorderSizePixel = 0
-    frame.Parent = notifyGui
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(0, 320, 0, 70)
+        frame.Position = UDim2.new(1, -340, 1, -90)
+        frame.BackgroundColor3 = Color3.fromRGB(30,30,35)
+        frame.BorderSizePixel = 0
+        frame.Parent = g
 
-    local corner = Instance.new("UICorner", frame)
-    corner.CornerRadius = UDim.new(0,8)
+        local corner = Instance.new("UICorner", frame)
+        corner.CornerRadius = UDim.new(0,8)
 
-    local titleLabel = Instance.new("TextLabel", frame)
-    titleLabel.Size = UDim2.new(1, -20, 0, 24)
-    titleLabel.Position = UDim2.new(0,10,0,6)
-    titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = title
-    titleLabel.TextColor3 = Color3.fromRGB(0,255,150)
-    titleLabel.TextSize = 14
-    titleLabel.Font = Enum.Font.GothamBold
-    titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        local titleLabel = Instance.new("TextLabel", frame)
+        titleLabel.Size = UDim2.new(1, -20, 0, 24)
+        titleLabel.Position = UDim2.new(0,10,0,6)
+        titleLabel.BackgroundTransparency = 1
+        titleLabel.Text = title
+        titleLabel.TextColor3 = Color3.fromRGB(0,255,150)
+        titleLabel.TextSize = 14
+        titleLabel.Font = Enum.Font.GothamBold
+        titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-    local textLabel = Instance.new("TextLabel", frame)
-    textLabel.Size = UDim2.new(1, -20, 0, 28)
-    textLabel.Position = UDim2.new(0,10,0,34)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = text
-    textLabel.TextColor3 = Color3.fromRGB(255,255,255)
-    textLabel.TextSize = 13
-    textLabel.Font = Enum.Font.Gotham
-    textLabel.TextXAlignment = Enum.TextXAlignment.Left
+        local textLabel = Instance.new("TextLabel", frame)
+        textLabel.Size = UDim2.new(1, -20, 0, 28)
+        textLabel.Position = UDim2.new(0,10,0,34)
+        textLabel.BackgroundTransparency = 1
+        textLabel.Text = text
+        textLabel.TextColor3 = Color3.fromRGB(255,255,255)
+        textLabel.TextSize = 13
+        textLabel.Font = Enum.Font.Gotham
+        textLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-    local stroke = Instance.new("UIStroke", frame)
-    stroke.Color = Color3.fromRGB(0,255,150)
-    stroke.Thickness = 1
+        local stroke = Instance.new("UIStroke", frame)
+        stroke.Color = Color3.fromRGB(0,255,150)
+        stroke.Thickness = 1
 
-    TweenService:Create(frame, TweenInfo.new(0.4), {Position = UDim2.new(1, -340, 1, -90)}):Play()
-    task.delay(duration, function()
-        pcall(function()
-            TweenService:Create(frame, TweenInfo.new(0.4), {Position = UDim2.new(1, 20, 1, -90)}):Play()
-            task.wait(0.45)
-            notifyGui:Destroy()
+        TweenService:Create(frame, TweenInfo.new(0.4), {Position = UDim2.new(1, -340, 1, -90)}):Play()
+        task.delay(duration, function()
+            pcall(function()
+                TweenService:Create(frame, TweenInfo.new(0.4), {Position = UDim2.new(1, 20, 1, -90)}):Play()
+                task.wait(0.45)
+                g:Destroy()
+            end)
         end)
+        return g
     end)
+    if not ok then
+        warn("Notify failed: ", notifyGui)
+    end
 end
 
 function Utility.GetDistance(pos)
@@ -355,7 +361,7 @@ local closeBtn = Instance.new("TextButton", TopBar)
 closeBtn.Size = UDim2.new(0,36,0,30); closeBtn.Position = UDim2.new(1, -44, 0, 7)
 closeBtn.Text = "X"; closeBtn.Font = Enum.Font.GothamBold; closeBtn.TextSize = 14
 closeBtn.BackgroundColor3 = Color3.fromRGB(255,50,50); closeBtn.TextColor3 = Color3.new(1,1,1)
-closeBtn.MouseButton1Click:Connect(function() pcall(function() ScreenGui:Destroy() end) end)
+closeBtn.MouseButton1Click:Connect(function() MainFrame.Visible = false end)
 
 local function CreateToggle(parent, text, tbl, key, cb)
     local f = Instance.new("Frame", parent)
@@ -422,12 +428,12 @@ local function CreateSlider(parent, text, tbl, key, min, max, cb)
 
     local dragging = false
     btn.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
         end
     end)
     UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = false
         end
     end)
@@ -445,8 +451,22 @@ local function CreateSlider(parent, text, tbl, key, min, max, cb)
     return frame
 end
 
-local Content = Instance.new("Frame", MainFrame)
-Content.Size = UDim2.new(1, -20, 1, -64); Content.Position = UDim2.new(0,10,0,54); Content.BackgroundTransparency = 1
+-- Scrolling content (mobile-friendly)
+local Content = Instance.new("ScrollingFrame", MainFrame)
+Content.Size = UDim2.new(1, -20, 1, -64)
+Content.Position = UDim2.new(0,10,0,54)
+Content.BackgroundTransparency = 1
+Content.ScrollBarThickness = 8
+Content.CanvasSize = UDim2.new(0,0,0,0)
+
+local UIList = Instance.new("UIListLayout", Content)
+UIList.Padding = UDim.new(0,8)
+UIList.HorizontalAlignment = Enum.HorizontalAlignment.Center
+UIList.SortOrder = Enum.SortOrder.LayoutOrder
+
+UIList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    Content.CanvasSize = UDim2.new(0, 0, 0, UIList.AbsoluteContentSize.Y + 12)
+end)
 
 -- Populate many useful toggles and sliders
 CreateToggle(Content, "Auto Day (fast)", CONFIG, "AutoDay")
@@ -500,63 +520,51 @@ CreateToggle(Content, "Health ESP", CONFIG.ESP, "Health")
 CreateToggle(Content, "Tracers", CONFIG.ESP, "Tracers")
 CreateSlider(Content, "ESP Distance", CONFIG.ESP, "Distance", 100, 5000)
 
--- Floating toggle button so user can open/close the menu
+-- Floating touch-friendly button
 local floatGui = Instance.new("ScreenGui")
 floatGui.Name = "UltimateFloat"
 floatGui.Parent = PlayerGui
 
-local floatFrame = Instance.new("Frame")
-floatFrame.Size = UDim2.new(0,48,0,48)
-floatFrame.Position = UDim2.new(0, 10, 0.5, -24)
-floatFrame.BackgroundColor3 = Color3.fromRGB(0,255,150)
-floatFrame.BorderSizePixel = 0
-floatFrame.Parent = floatGui
-local floatCorner = Instance.new("UICorner", floatFrame); floatCorner.CornerRadius = UDim.new(1,0)
+local floatBtn = Instance.new("TextButton")
+floatBtn.Name = "UltimateFloatBtn"
+floatBtn.Size = UDim2.new(0,48,0,48)
+floatBtn.Position = UDim2.new(0, 10, 0.5, -24)
+floatBtn.BackgroundColor3 = Color3.fromRGB(0,255,150)
+floatBtn.BorderSizePixel = 0
+floatBtn.Parent = floatGui
+local floatCorner = Instance.new("UICorner", floatBtn); floatCorner.CornerRadius = UDim.new(1,0)
+floatBtn.Text = "99"
+floatBtn.Font = Enum.Font.GothamBold
+floatBtn.TextSize = 18
+floatBtn.TextColor3 = Color3.new(0,0,0)
 
-local floatLabel = Instance.new("TextLabel", floatFrame)
-floatLabel.Size = UDim2.new(1,1,1,1)
-floatLabel.BackgroundTransparency = 1
-floatLabel.Text = "99"
-floatLabel.Font = Enum.Font.GothamBold
-floatLabel.TextSize = 18
-floatLabel.TextColor3 = Color3.new(0,0,0)
-
--- Make float draggable
-local dragging = false
+-- Dragging support (touch-friendly)
+local draggingBtn = false
 local dragStart = nil
 local startPos = nil
-floatFrame.InputBegan:Connect(function(input)
+floatBtn.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
+        draggingBtn = true
         dragStart = input.Position
-        startPos = floatFrame.Position
+        startPos = floatBtn.Position
     end
 end)
-floatFrame.InputChanged:Connect(function(input)
-    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+floatBtn.InputChanged:Connect(function(input)
+    if draggingBtn and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
         local delta = input.Position - dragStart
-        floatFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        floatBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
     end
 end)
-UserInputService.InputEnded:Connect(function(input)
+floatBtn.InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = false
+        draggingBtn = false
     end
 end)
 
 -- Toggle main UI visibility
 MainFrame.Visible = true
-floatFrame.MouseButton1Click = floatFrame.MouseButton1Click or Instance.new("BindableEvent")
-floatFrame.MouseButton1Click.Event:Connect(function() end) -- ensure exists
-floatFrame.InputEnded:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-        MainFrame.Visible = not MainFrame.Visible
-    end
-end)
-
--- Close button hides main UI (floating button remains)
-closeBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = false
+floatBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
 end)
 
 -- Feature loops (throttled)
@@ -685,7 +693,7 @@ RunService.RenderStepped:Connect(function()
     ESP.Update()
 end)
 
-Utility.Notify("99 Nights Ultimate", "Refactor loaded (v1.1).", 4)
+Utility.Notify("99 Nights Ultimate", "Refactor loaded (v1.2).", 4)
 
 -- Anti AFK
 local vu = game:GetService("VirtualUser")
@@ -695,4 +703,4 @@ player.Idled:Connect(function()
     vu:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
 end)
 
-print("99 Nights Ultimate Script Loaded - Refactor v1.1")
+print("99 Nights Ultimate Script Loaded - Refactor v1.2")

@@ -38,7 +38,7 @@ local CONFIG = {
     KillAuraRange = 100,
     InstantKill = true,
     ChopAura = true,
-    LongRangeChop = true,   -- NEW: Cut far trees
+    LongRangeChop = true,
     StunAnimals = true,
     
     -- God Tier Farming
@@ -54,7 +54,7 @@ local CONFIG = {
     AutoFish = true,
     AutoPlant = true,
     
-    -- New: Base Building
+    -- Base Building
     AutoBuildBase = false,
     BuildRadius = 30,
     
@@ -73,14 +73,14 @@ local CONFIG = {
     NoClip = false,
     InfiniteJump = true,
     
-    -- Visuals + Quality
+    -- Visuals
     Fullbright = true,
     NoFog = true,
     InstantPrompt = true,
     RemoveSky = false,
     
     -- Extras
-    ItemSpawner = false,   -- If game allows
+    ItemSpawner = false,
     AntiAFK = true,
 }
 
@@ -94,10 +94,16 @@ local function refreshRemotes()
 end
 refreshRemotes()
 
+--// UTILITY
 local Utility = {}
+
+function Utility.GetDistance(pos)
+    if not hrp or not pos then return math.huge end
+    return (hrp.Position - pos).Magnitude
+end
+
 function Utility.Notify(t, m) 
     print("[ULTIMATE v9]", t, m) 
-    -- Full fancy GUI notification code here (same as before)
 end
 
 function Utility.GetMonsters()
@@ -120,11 +126,53 @@ function Utility.GetTrees()
     return t
 end
 
---// ESP (Optimized)
-local ESP = {Drawings = {}}
--- ... (keep high-quality ESP from v8)
+function Utility.GetAllItems()
+    local items = {}
+    for _, v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("BasePart") or v:IsA("MeshPart") then
+            local ok, name = pcall(function() return v.Name:lower() end)
+            if ok and name then
+                if name:find("item") or name:find("drop") or name:find("loot") or
+                   name:find("berry") or name:find("mushroom") or name:find("meat") or
+                   name:find("wood") or name:find("stone") or name:find("coal") or
+                   name:find("scrap") or name:find("diamond") or name:find("gem") then
+                    table.insert(items, v)
+                end
+            end
+        end
+    end
+    return items
+end
 
---// LONG RANGE CHOP AURA (New)
+function Utility.GetChests()
+    local chests = {}
+    for _, v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("Model") or v:IsA("BasePart") then
+            local nm = v.Name:lower()
+            if nm:find("chest") or nm:find("crate") then
+                table.insert(chests, v)
+            end
+        end
+    end
+    return chests
+end
+
+function Utility.GetKids()
+    local kids = {}
+    for _, v in ipairs(Workspace:GetDescendants()) do
+        if v:IsA("Model") then
+            local nm = v.Name:lower()
+            if nm:find("kid") or nm:find("child") or nm:find("lost") then
+                if v:FindFirstChild("HumanoidRootPart") then
+                    table.insert(kids, v)
+                end
+            end
+        end
+    end
+    return kids
+end
+
+--// LONG RANGE CHOP AURA
 task.spawn(function()
     while true do
         task.wait(0.1)
@@ -133,13 +181,11 @@ task.spawn(function()
                 local trunk = tree:FindFirstChild("Trunk") or tree:FindFirstChildOfClass("BasePart")
                 if trunk then
                     pcall(function()
-                        -- Fire remotely even from distance
                         Remotes.ChopTree:FireServer(tree)
-                        -- Optional: Bring logs closer
                         if CONFIG.AutoBringAll then
                             for _, log in ipairs(Workspace:GetDescendants()) do
                                 if log.Name:lower():find("log") and Utility.GetDistance(log.Position) > 50 then
-                                    log.CFrame = hrp.CFrame + Vector3.new(0,5,0)
+                                    pcall(function() log.CFrame = hrp.CFrame + Vector3.new(0,5,0) end)
                                 end
                             end
                         end
@@ -155,7 +201,6 @@ task.spawn(function()
     while true do
         task.wait(0.2)
         
-        -- Bring everything
         if CONFIG.AutoBringAll then
             for _, item in ipairs(Workspace:GetDescendants()) do
                 if item:IsA("BasePart") and Utility.GetDistance(item.Position) < 150 then
@@ -164,33 +209,122 @@ task.spawn(function()
             end
         end
         
-        -- Auto Base Builder (NEW)
         if CONFIG.AutoBuildBase then
             for i = 1, 8 do
                 local angle = (i * 45) * math.rad(45)
                 local pos = hrp.Position + Vector3.new(math.cos(angle) * CONFIG.BuildRadius, 0, math.sin(angle) * CONFIG.BuildRadius)
-                -- Fire build remote or place logs if available
             end
         end
     end
 end)
 
--- Kill Aura, God Mode, Movement, Visuals, ESP (same high-quality as v8 but faster)
-
---// ITEM SPAWNER (if game supports)
-local function spawnItem(itemName)
-    -- Attempt common spawn methods
-    if Remotes.CollectItem then
-        -- placeholder for game-specific
+--// GOD MODE
+task.spawn(function()
+    while true do
+        task.wait(0.25)
+        if CONFIG.GodMode and humanoid then
+            pcall(function() humanoid.Health = humanoid.MaxHealth end)
+        end
     end
+end)
+
+--// KILL AURA
+task.spawn(function()
+    while true do
+        task.wait(0.1)
+        if CONFIG.KillAura then
+            for _, mob in ipairs(Utility.GetMonsters()) do
+                if mob and mob:FindFirstChild("HumanoidRootPart") and mob:FindFirstChild("Humanoid") then
+                    local dist = Utility.GetDistance(mob.HumanoidRootPart.Position)
+                    if dist <= CONFIG.KillAuraRange then
+                        pcall(function()
+                            if CONFIG.InstantKill then
+                                mob.Humanoid.Health = 0
+                            else
+                                mob.Humanoid:TakeDamage(50)
+                            end
+                        end)
+                    end
+                end
+            end
+        end
+    end
+end)
+
+--// MOVEMENT & SPEED
+task.spawn(function()
+    while true do
+        task.wait(0.05)
+        if humanoid then 
+            humanoid.WalkSpeed = CONFIG.Speed 
+        end
+        if CONFIG.Fly and hrp then
+            hrp.Anchored = true
+            local camera = Workspace.CurrentCamera
+            local move = Vector3.new()
+            if UserInputService:IsKeyDown(Enum.KeyCode.W) then move = move + camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.S) then move = move - camera.CFrame.LookVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.A) then move = move - camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.D) then move = move + camera.CFrame.RightVector end
+            if UserInputService:IsKeyDown(Enum.KeyCode.Space) then move = move + Vector3.new(0,1,0) end
+            if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then move = move - Vector3.new(0,1,0) end
+            if move.Magnitude > 0 then
+                move = move.Unit * CONFIG.FlySpeed
+                hrp.Velocity = move
+            else
+                hrp.Velocity = Vector3.new(0,0,0)
+            end
+        else
+            if hrp then hrp.Anchored = false end
+        end
+    end
+end)
+
+--// NOCLIP
+task.spawn(function()
+    while true do
+        task.wait(0.2)
+        if CONFIG.NoClip and character then
+            for _, part in pairs(character:GetDescendants()) do
+                if part:IsA("BasePart") then 
+                    pcall(function() part.CanCollide = false end) 
+                end
+            end
+        end
+    end
+end)
+
+--// INFINITE JUMP
+UserInputService.JumpRequest:Connect(function()
+    if CONFIG.InfiniteJump and humanoid then
+        pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Jumping) end)
+    end
+end)
+
+--// VISUALS
+if CONFIG.Fullbright then
+    Lighting.Brightness = 10
+    Lighting.GlobalShadows = false
+    Lighting.Ambient = Color3.new(1,1,1)
+end
+if CONFIG.NoFog then
+    Lighting.FogEnd = 100000
 end
 
---// KEYBINDS (Quality of Life)
+--// KEYBINDS
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.F then CONFIG.Fly = not CONFIG.Fly end
     if input.KeyCode == Enum.KeyCode.V then CONFIG.NoClip = not CONFIG.NoClip end
     if input.KeyCode == Enum.KeyCode.B then CONFIG.AutoBuildBase = not CONFIG.AutoBuildBase end
+end)
+
+--// ANTI AFK
+local vu = game:GetService("VirtualUser")
+player.Idled:Connect(function()
+    vu:Button2Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+    task.wait(1)
+    vu:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
 end)
 
 Utility.Notify("ULTIMATE v9.0", "Loaded • Long-Range Chop + Auto Base + Everything Maxed", 10)

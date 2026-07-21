@@ -1,5 +1,6 @@
--- 99 NIGHTS IN THE FOREST - ULTIMATE (Refactor v1.0)
+-- 99 NIGHTS IN THE FOREST - ULTIMATE (Refactor v1.1)
 -- Improvements: safer checks, throttled remotes, caching, better loops, UI fallback
+-- UI: added floating toggle button and more controls (toggles & sliders)
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -218,7 +219,6 @@ function Utility.FireRemote(remote, cooldown, ...)
     RemoteThrottle[key] = t
     local args = {...}
     pcall(function()
-        -- use table.unpack to safely forward varargs into the pcall scope
         if #args > 0 then
             remote:FireServer(table.unpack(args))
         else
@@ -382,13 +382,182 @@ local function CreateToggle(parent, text, tbl, key, cb)
     return f
 end
 
+-- Simple slider creator
+local function CreateSlider(parent, text, tbl, key, min, max, cb)
+    local frame = Instance.new("Frame", parent)
+    frame.Size = UDim2.new(0.95,0,0,70)
+    frame.BackgroundColor3 = Color3.fromRGB(30,30,35)
+    local label = Instance.new("TextLabel", frame)
+    label.Size = UDim2.new(0.6, -10, 0, 25)
+    label.Position = UDim2.new(0, 10, 0, 5)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Color3.fromRGB(255,255,255)
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 14
+
+    local valueLabel = Instance.new("TextLabel", frame)
+    valueLabel.Size = UDim2.new(0.3, 0, 0, 25)
+    valueLabel.Position = UDim2.new(0.7, 0, 0, 5)
+    valueLabel.BackgroundTransparency = 1
+    valueLabel.Text = tostring(tbl[key])
+    valueLabel.TextColor3 = Color3.fromRGB(0,255,150)
+    valueLabel.Font = Enum.Font.GothamBold
+    valueLabel.TextSize = 14
+    valueLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+    local bg = Instance.new("Frame", frame)
+    bg.Size = UDim2.new(0.95, 0, 0, 8)
+    bg.Position = UDim2.new(0.025, 0, 0, 45)
+    bg.BackgroundColor3 = Color3.fromRGB(50,50,55)
+    bg.BorderSizePixel = 0
+    local fill = Instance.new("Frame", bg)
+    fill.Size = UDim2.new(((tbl[key] - min) / (max - min)), 1, 1, 0)
+    fill.BackgroundColor3 = Color3.fromRGB(0,255,150)
+    local btn = Instance.new("TextButton", bg)
+    btn.Size = UDim2.new(0, 16, 0, 16)
+    btn.Position = UDim2.new(((tbl[key] - min) / (max - min)), -8, 0.5, -8)
+    btn.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    btn.Text = ""
+
+    local dragging = false
+    btn.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = false
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local pos = math.clamp((input.Position.X - bg.AbsolutePosition.X) / bg.AbsoluteSize.X, 0, 1)
+            local value = math.floor(min + (max - min) * pos)
+            tbl[key] = value
+            valueLabel.Text = tostring(value)
+            fill.Size = UDim2.new(pos, 0, 1, 0)
+            btn.Position = UDim2.new(pos, -8, 0.5, -8)
+            if cb then pcall(cb, value) end
+        end
+    end)
+    return frame
+end
+
 local Content = Instance.new("Frame", MainFrame)
 Content.Size = UDim2.new(1, -20, 1, -64); Content.Position = UDim2.new(0,10,0,54); Content.BackgroundTransparency = 1
 
--- Example toggles
+-- Populate many useful toggles and sliders
 CreateToggle(Content, "Auto Day (fast)", CONFIG, "AutoDay")
+CreateSlider(Content, "Auto Day Speed", CONFIG, "AutoDaySpeed", 0.01, 1)
+CreateToggle(Content, "Auto Save Kids", CONFIG, "AutoSaveKids")
+CreateToggle(Content, "Auto Collect Drops", CONFIG, "AutoCollectDrops")
+CreateToggle(Content, "Auto Farm Diamonds", CONFIG, "AutoFarmDiamonds")
+CreateToggle(Content, "Auto Open Chests", CONFIG, "AutoOpenChests")
+CreateToggle(Content, "Auto Chop Trees", CONFIG, "AutoChopTrees")
+CreateToggle(Content, "Auto Eat", CONFIG, "AutoEat")
+
 CreateToggle(Content, "Kill Aura", CONFIG, "KillAura")
+CreateSlider(Content, "Kill Aura Range", CONFIG, "KillAuraRange", 10, 200)
+CreateSlider(Content, "Kill Aura Speed", CONFIG, "KillAuraSpeed", 0.01, 1)
+CreateToggle(Content, "Instant Kill", CONFIG, "InstantKill")
+CreateToggle(Content, "God Mode", CONFIG, "GodMode")
+CreateToggle(Content, "Anti Ragdoll", CONFIG, "AntiRagdoll")
+
+CreateToggle(Content, "Speed Boost", CONFIG, "SpeedBoost")
+CreateSlider(Content, "Speed Value", CONFIG, "SpeedValue", 16, 500)
+CreateToggle(Content, "Fly", CONFIG, "Fly")
+CreateSlider(Content, "Fly Speed", CONFIG, "FlySpeed", 10, 200)
+CreateToggle(Content, "No Clip", CONFIG, "NoClip")
+CreateToggle(Content, "Infinite Jump", CONFIG, "InfiniteJump")
+
+CreateToggle(Content, "Fullbright", CONFIG, "Fullbright", function(on)
+    if on then
+        Lighting.Brightness = 10
+        Lighting.GlobalShadows = false
+        Lighting.Ambient = Color3.new(1,1,1)
+    else
+        Lighting.Brightness = 2
+        Lighting.GlobalShadows = true
+        Lighting.Ambient = Color3.new(0.5,0.5,0.5)
+    end
+end)
+CreateToggle(Content, "No Fog", CONFIG, "NoFog", function(on)
+    Lighting.FogEnd = on and 100000 or 1000
+end)
+
+-- ESP toggles
 CreateToggle(Content, "ESP Master", CONFIG.ESP, "Enabled")
+CreateToggle(Content, "Show Players", CONFIG.ESP, "Players")
+CreateToggle(Content, "Show Monsters", CONFIG.ESP, "Monsters")
+CreateToggle(Content, "Show Items", CONFIG.ESP, "Items")
+CreateToggle(Content, "Show Chests", CONFIG.ESP, "Chests")
+CreateToggle(Content, "Show Kids", CONFIG.ESP, "Kids")
+CreateToggle(Content, "Box ESP", CONFIG.ESP, "Boxes")
+CreateToggle(Content, "Name ESP", CONFIG.ESP, "Names")
+CreateToggle(Content, "Health ESP", CONFIG.ESP, "Health")
+CreateToggle(Content, "Tracers", CONFIG.ESP, "Tracers")
+CreateSlider(Content, "ESP Distance", CONFIG.ESP, "Distance", 100, 5000)
+
+-- Floating toggle button so user can open/close the menu
+local floatGui = Instance.new("ScreenGui")
+floatGui.Name = "UltimateFloat"
+floatGui.Parent = PlayerGui
+
+local floatFrame = Instance.new("Frame")
+floatFrame.Size = UDim2.new(0,48,0,48)
+floatFrame.Position = UDim2.new(0, 10, 0.5, -24)
+floatFrame.BackgroundColor3 = Color3.fromRGB(0,255,150)
+floatFrame.BorderSizePixel = 0
+floatFrame.Parent = floatGui
+local floatCorner = Instance.new("UICorner", floatFrame); floatCorner.CornerRadius = UDim.new(1,0)
+
+local floatLabel = Instance.new("TextLabel", floatFrame)
+floatLabel.Size = UDim2.new(1,1,1,1)
+floatLabel.BackgroundTransparency = 1
+floatLabel.Text = "99"
+floatLabel.Font = Enum.Font.GothamBold
+floatLabel.TextSize = 18
+floatLabel.TextColor3 = Color3.new(0,0,0)
+
+-- Make float draggable
+local dragging = false
+local dragStart = nil
+local startPos = nil
+floatFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = floatFrame.Position
+    end
+end)
+floatFrame.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        floatFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- Toggle main UI visibility
+MainFrame.Visible = true
+floatFrame.MouseButton1Click = floatFrame.MouseButton1Click or Instance.new("BindableEvent")
+floatFrame.MouseButton1Click.Event:Connect(function() end) -- ensure exists
+floatFrame.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        MainFrame.Visible = not MainFrame.Visible
+    end
+end)
+
+-- Close button hides main UI (floating button remains)
+closeBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+end)
 
 -- Feature loops (throttled)
 local closed = false
@@ -516,7 +685,7 @@ RunService.RenderStepped:Connect(function()
     ESP.Update()
 end)
 
-Utility.Notify("99 Nights Ultimate", "Refactor loaded (v1.0).", 4)
+Utility.Notify("99 Nights Ultimate", "Refactor loaded (v1.1).", 4)
 
 -- Anti AFK
 local vu = game:GetService("VirtualUser")
@@ -526,4 +695,4 @@ player.Idled:Connect(function()
     vu:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
 end)
 
-print("99 Nights Ultimate Script Loaded - Refactor v1.0")
+print("99 Nights Ultimate Script Loaded - Refactor v1.1")

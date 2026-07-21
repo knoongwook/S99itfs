@@ -1,0 +1,14 @@
+# Ignore editor and system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Lua cache
+*.luac
+
+# Node/npm
+node_modules/
+
+# macOS
+*.DS_Store

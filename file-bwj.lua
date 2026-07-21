@@ -216,7 +216,15 @@ function Utility.FireRemote(remote, cooldown, ...)
     local t = os.clock()
     if RemoteThrottle[key] and t - RemoteThrottle[key] < cooldown then return end
     RemoteThrottle[key] = t
-    pcall(function() remote:FireServer(...) end)
+    local args = {...}
+    pcall(function()
+        -- use table.unpack to safely forward varargs into the pcall scope
+        if #args > 0 then
+            remote:FireServer(table.unpack(args))
+        else
+            remote:FireServer()
+        end
+    end)
 end
 
 -- ESP (Drawing) - minimal robust implementation
